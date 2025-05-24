@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ruta Real - Calahorra</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const apiKey = '5b3ce3597851110001cf62481a56d5e8e2fb4b2598a7e4b05c311549';
+
+    const catedral = [-1.9577569236175345, 42.298974053521775];
+    const elRaso = [-1.961359105630802, 42.301664710448975];
+
+    const map = L.map('map').setView([42.3003, -1.9595], 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    L.marker([42.298974053521775, -1.9577569236175345]).addTo(map).bindPopup("Catedral de Santa María");
+    L.marker([42.301664710448975, -1.961359105630802]).addTo(map).bindPopup("El Raso");
+
+    async function dibujarRuta(tipo) {
+      try {
+        const res = await fetch(`https://api.openrouteservice.org/v2/directions/${tipo}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            coordinates: [catedral, elRaso]
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('Error al obtener ruta:', data);
+          return;
+        }
+
+        const coords = data.features[0].geometry.coordinates.map(p => [p[1], p[0]]);
+        const distancia = data.features[0].properties.summary.distance / 1000;
+        const duracion = data.features[0].properties.summary.duration / 60;
+
+        L.polyline(coords, {
+          color: tipo === 'foot-walking' ? 'green' : 'blue',
+          weight: 5
+        }).addTo(map);
+
+        const puntoMedio = [(catedral[1] + elRaso[1]) / 2, (catedral[0] + elRaso[0]) / 2];
+        L.popup()
+          .setLatLng(puntoMedio)
+          .setContent(`
+            <b>Ruta ${tipo === 'foot-walking' ? 'a pie' : 'en bici'}</b><br>
+            <b>Distancia:</b> ${distancia.toFixed(2)} km<br>
+            <b>Duración:</b> ${duracion.toFixed(1)} min
+          `)
+          .openOn(map);
+
+      } catch (error) {
+        console.error('Fallo de red o error general:', error);
+      }
+    }
+
+    // Mostrar solo una ruta primero para probar
+    dibujarRuta('foot-walking');
+  </script>
+</body>
+</html>
